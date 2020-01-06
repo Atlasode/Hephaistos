@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "483578658958",
+    "firebase_url": "https://project-hephaistos.firebaseio.com",
+    "project_id": "project-hephaistos",
+    "storage_bucket": "project-hephaistos.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:483578658958:android:a15ebbbd54ea64173449df",
+        "android_client_info": {
+          "package_name": "de.olympus.hephaistos"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "483578658958-785qdeh8ua3rrr6rpp5dg83k3m4pjbmt.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyByqNGdrv_VgdvIzjYupySZ8fWqDADMMOY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "483578658958-785qdeh8ua3rrr6rpp5dg83k3m4pjbmt.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
