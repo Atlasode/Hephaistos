@@ -1,6 +1,7 @@
 import 'dart:collection';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hephaistos/constants.dart';
@@ -8,6 +9,11 @@ import 'package:hephaistos/data/cache.dart';
 import 'package:hephaistos/data/data.dart';
 import 'package:hephaistos/manage/course.dart';
 import 'package:hephaistos/timetable/timetable_selection.dart';
+import 'package:hephaistos/widgets/color_picker.dart';
+
+typedef SelectionHandler<V> = bool Function(V value, bool state);
+typedef Supplier<T> = T Function();
+typedef Consumer<T> = void Function(T value);
 
 class LessonRow {
   final int index;
@@ -64,7 +70,7 @@ class TimetableManager {
       this.days = defaultDays;
     }
     dayRow = new LessonRow(RowType.DAY, Map.fromIterable(dayList, key: (day) => day.name, value: (day) => ''), dayRow: true);
-    if (timetable.lessons.get() != null) {
+    if (timetable.lessons.get() != null && timetable.lessons.get().length > 0) {
       for (int i = 0; i < lessonCount; i++) {
         Lessons rowData = timetable.lessons.get()[i];
         Map<dynamic, dynamic> rowLessons = rowData.lessons;
@@ -127,43 +133,22 @@ class _TimetablePageState extends State<TimetablePage> {
         title: Text(subject.name.get(), style: TextStyle(color: subject.color.get())),
         subtitle: Text(subject.short.get()),
         onTap: () {
-          Firestore.instance.runTransaction((transaction) async {
-            DocumentReference newDocRef = Firestore.instance.collection('timetables').document(widget.timetableKey);
-            DocumentSnapshot doc = await newDocRef.get();
-            var lessonsData = doc.data['lessons'];
-            if (lessonsData == null) {
-              var days = doc['days'];
-              List<Day> dayList = Day.values.where((day) => days[day.name]).toList();
-              Map<String, String> createRowLessons(int rowIndex) {
-                Map<String, String> rowLessons = {};
-                dayList.forEach((day) {
-                  if (selectedIndex == dayList.indexOf(day) && selectedRow == rowIndex) {
-                    rowLessons[day.name] = subject.key.get();
-                  } else {
-                    rowLessons[day.name] = '';
-                  }
-                });
-                return rowLessons;
-              }
-
-              List<Map<String, dynamic>> lessonsList = List.generate(doc.data['lessonsCount'], (index) {
-                return {'index': index, 'lessons': createRowLessons(index), 'from': '', 'to': ''};
-              });
-              await transaction.update(newDocRef, {'lessons': lessonsList});
-            } else {
-              List<dynamic> lessonsList = lessonsData;
-              Iterable<dynamic> lessonsFilter = lessonsList.where((row) => row['index'] == selectedRow);
-              if (lessonsFilter.isEmpty) {
-              } else {
-                dynamic rowData = lessonsFilter.first;
-                dynamic rowLessons = rowData['lessons'];
-                var days = doc['days'];
+          Writer.start((writer) async {
+            await writer.updateOrCreate(Caches.groupDocument(key: GroupCache.timetables, path: widget.timetableKey), (data) {
+              Timetable timetable = data.as(GroupCache.timetables);
+              Iterable<Lessons> lessonsFilter = timetable.lessons.get().where((row) => row.index == selectedRow);
+              if (lessonsFilter.isNotEmpty) {
+                Lessons lessons = lessonsFilter.first;
+                var days = timetable.days.get();
                 List<Day> dayList = Day.values.where((day) => days[day.name]).toList();
-                rowLessons[dayList[selectedIndex].name] = subject.key;
+                lessons.lessons[dayList[selectedIndex].name] = subject.key.get();
+              } else {
+                //TODO: Only happens if there is a bug in the system
               }
-              await transaction.update(newDocRef, {'lessons': lessonsList});
-            }
-          }).then((v) => Navigator.pop(context));
+              timetable.lessons.forceUpdate();
+              return data;
+            }, update: true);
+          }).then((_) => Navigator.pop(context));
         });
   }
 
@@ -179,10 +164,12 @@ class _TimetablePageState extends State<TimetablePage> {
           customWaiting: (context, cache) {
             Subject subject = cache.asSchemeOrNull(GroupCache.subjects);
             return InkWell(
-                child: Container(
-                    color: subject != null && subject.color != null ? subject.color.get().withAlpha(135) : Theme.of(context).canvasColor,
-                    height: height,
-                    child: Center(child: new Text(subject != null && subject.name.get() != null ? subject.name.get() : ''))));
+              child: Container(
+                  color: subject != null && subject.color != null ? subject.color.get().withAlpha(135) : Theme.of(context).canvasColor,
+                  height: height,
+                  child: Center(child: new Text(subject != null && subject.name.get() != null ? subject.name.get() : ''))),
+              onTap: _onCellPress(context, lesson, row, index, key: title),
+            );
           },
           builder: (context, cache) {
             Subject subject = cache.asScheme(GroupCache.subjects);
@@ -197,7 +184,7 @@ class _TimetablePageState extends State<TimetablePage> {
                     ),
                   ),
                 ),
-                onTap: _onCellPress(context, lesson, row, index));
+                onTap: _onCellPress(context, lesson, row, index, key: title));
           });
     } else {
       child = InkWell(
@@ -218,7 +205,7 @@ class _TimetablePageState extends State<TimetablePage> {
     );
   }
 
-  GestureTapCallback _onCellPress(BuildContext context, bool lesson, int row, int index) {
+  GestureTapCallback _onCellPress(BuildContext context, bool lesson, int row, int index, {String key}) {
     if (!lesson) {
       return null;
     }
@@ -227,7 +214,8 @@ class _TimetablePageState extends State<TimetablePage> {
         selectedRow = row;
         selectedIndex = index;
       });
-      openSubjectSelection(context);
+      /*openSubjectSelection(context);*/
+      Navigator.push(context, MaterialPageRoute(builder: (context) => CellSelectionPage(title: 'Create Subject', courses: ['6ZpflWcCWLKumM7RzSAX'])));
     };
   }
 
@@ -258,24 +246,22 @@ class _TimetablePageState extends State<TimetablePage> {
                     color: Colors.blue[200],
                     child: Text('Remove'),
                     onPressed: () {
-                      Firestore.instance.runTransaction((transaction) async {
-                        DocumentReference newDocRef = Firestore.instance.collection('timetables').document(widget.timetableKey);
-                        DocumentSnapshot doc = await newDocRef.get();
-                        var lessonsData = doc.data['lessons'];
-                        if (lessonsData != null) {
-                          List<dynamic> lessonsList = lessonsData;
-                          Iterable<dynamic> lessonsFilter = lessonsList.where((row) => row['index'] == selectedRow);
-                          if (lessonsFilter.isEmpty) {
-                          } else {
-                            dynamic rowData = lessonsFilter.first;
-                            dynamic rowLessons = rowData['lessons'];
-                            var days = doc['days'];
+                      Writer.start((writer) async {
+                        await writer.updateOrCreate(Caches.groupDocument(key: GroupCache.timetables, path: widget.timetableKey), (data) {
+                          Timetable timetable = data.as(GroupCache.timetables);
+                          Iterable<Lessons> lessonsFilter = timetable.lessons.get().where((row) => row.index == selectedRow);
+                          if (lessonsFilter.isNotEmpty) {
+                            Lessons lessons = lessonsFilter.first;
+                            var days = timetable.days.get();
                             List<Day> dayList = Day.values.where((day) => days[day.name]).toList();
-                            rowLessons[dayList[selectedIndex].name] = '';
+                            lessons.lessons[dayList[selectedIndex].name] = '';
+                          } else {
+                            //TODO: Only happens if there is a bug in the system
                           }
-                          await transaction.update(newDocRef, {'lessons': lessonsList});
-                        }
-                      }).then((v) => Navigator.pop(context));
+                          timetable.lessons.forceUpdate();
+                          return data;
+                        }, update: true);
+                      }).then((_) => Navigator.pop(context));
                     },
                   ))
             ],
@@ -357,5 +343,221 @@ class _TimetablePageState extends State<TimetablePage> {
         Firestore.instance.collection('groups').document(debugGroup).collection(collections).document(key).setData(value);
       });
     });
+  }
+}
+
+class CellSelectionPage extends StatefulWidget {
+  final List<String> courses;
+  final String title;
+
+  const CellSelectionPage({Key key, this.title, this.courses = const []}) : super(key: key);
+
+  @override
+  State<CellSelectionPage> createState() => _CellSelectionPageState();
+}
+
+class _CellSelectionPageState extends State<CellSelectionPage> {
+  _CellViewState cellView;
+  ScrollController scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    scrollController = ScrollController();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // full screen width and height
+    double width = MediaQuery.of(context).size.width;
+    double height = MediaQuery.of(context).size.height;
+
+    // height without SafeArea
+    var padding = MediaQuery.of(context).padding;
+    double height1 = height - padding.top - padding.bottom;
+
+    // height without status bar
+    double height2 = height - padding.top;
+
+    // height without status and toolbar
+    double height3 = height - padding.top - kToolbarHeight;
+    return Scaffold(
+        appBar: AppBar(title: Text(widget.title)),
+        body: new Column(
+          children: <Widget>[
+            Container(
+              width: width,
+              height: height3 * 0.2,
+              margin: EdgeInsets.symmetric(vertical: height3 * 0.05, horizontal: width * 0.075),
+              child: Card(child: CellView(courses: widget.courses, stateUpdater: (value)=>cellView=value)),
+            ),
+            Container(
+                width: width,
+                height: height3 * 0.6,
+                margin: EdgeInsets.symmetric(vertical: height3 * 0.05, horizontal: width * 0.05),
+                child: Card(
+                  child: CachedQuery(
+                    collection: Caches.groupCollection(GroupCache.subjects),
+                    builder: (context, subjectsCache) {
+                      List<Subject> cacheList = subjectsCache.asList(GroupCache.subjects);
+                      return new ListView(
+                          controller: scrollController,
+                          children: ListTile.divideTiles(
+                              context: context,
+                              tiles: cacheList.map((subject) {
+                                return FilteredGroupCollection(
+                                    collection: GroupCache.courses,
+                                    schemeDocumentId: subject.object.document.documentID,
+                                    scheme: subject,
+                                    keyGetter: (subject) => subject.courses.get(),
+                                    useBuilderForWaiting: true,
+                                    builder: (context, coursesCache) {
+                                      List<Course> courseList = coursesCache.asList(GroupCache.courses);
+                                      return ExpansionTile(
+                                        key: ValueKey(subject.key.get()),
+                                        title: Text(subject.name.get(), style: TextStyle(color: subject.color.get())),
+                                        subtitle: Text(subject.short.get()),
+                                        children: ListTile.divideTiles(
+                                            context: context,
+                                            tiles: courseList.map((course)=> CourseTile(course: course, onSelection: (value, state)=>cellView.onSelection(value, state)))).toList(),
+                                      );
+                                    });
+                              })).toList());
+                    },
+                  ),
+                )),
+          ],
+        ));
+  }
+}
+
+class CourseTile extends StatefulWidget {
+  final Course course;
+  final SelectionHandler<String> onSelection;
+
+  const CourseTile({Key key, this.course, this.onSelection}) : super(key: key);
+
+  @override
+  State<StatefulWidget> createState() =>_CourseTile();
+
+}
+
+class _CourseTile extends State<CourseTile> {
+  bool selected;
+
+  @override
+  void initState() {
+    super.initState();
+    selected = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Course course = widget.course;
+    return new ListTile(
+        key: ValueKey(course.key.get()),
+        onTap: (){
+          setState(() {
+            selected=widget.onSelection(course.key.get(), !selected) ? !selected : selected;
+          });
+        },
+        title: Text(course.name.get()),
+        subtitle: Text(course.short.get()),
+        trailing: CircleColor(color: course.color.get(), circleSize: 42, isSelected:selected, iconSelected: Icons.check));
+  }
+
+}
+
+class CellView extends StatefulWidget {
+  final List<String> courses;
+  final Consumer<_CellViewState> stateUpdater;
+
+  const CellView({Key key, this.courses, this.stateUpdater}) : super(key: key);
+
+  @override
+  State<CellView> createState() => _CellViewState();
+}
+
+class _CellViewState extends State<CellView> {
+  List<String> courses;
+  //Map<String, List<String>> coursesBySubject;
+
+  @override
+  void initState() {
+    super.initState();
+    this.courses = List.of(widget.courses);
+    widget.stateUpdater(this);
+    /*coursesBySubject= {};
+    for(String course in courses) {
+      Document doc = Caches.groupDocument(key: GroupCache.courses, path: course);
+      doc.requestData().then((obj){
+        Course course = obj.asSchemeOrNull(GroupCache.courses);
+        if(course != null){
+          setState(() {
+            coursesBySubject.putIfAbsent(course.subjectKey.get(), ()=>[]).add(course.key.get());
+          });
+        }
+      });
+    }*/
+  }
+
+  bool onSelection(String value, bool state){
+    if(!state && courses.contains(value)){
+      setState(() {
+        courses.remove(value);
+      });
+      return true;
+    } else if(state && courses.length < 4) {
+      setState(() {
+        courses.add(value);
+      });
+      return true;
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    List<Widget> widgets;
+    if (courses.isNotEmpty) {
+      widgets = courses.map(_buildCourse).toList();
+    } else {
+      widgets = [
+        const Expanded(
+            child: const Card(
+          child: const Center(child: const Text('No Course is selected')),
+        ))
+      ];
+    }
+    return Container(
+        margin: EdgeInsets.all(10),
+        child:/* FilteredCollection(
+
+    builder: (context, obj)=>*/Row(
+      mainAxisSize: MainAxisSize.max,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: widgets,
+    ));
+  }
+
+  Widget _buildCourse(String courseKey) {
+    return Expanded(
+      child: CachedDocument(
+          document: Caches.groupDocument(key: GroupCache.courses, path: courseKey),
+          builder: (context, cache) {
+            Course course = cache.asScheme(GroupCache.courses);
+            return CachedDocument(
+              document: Caches.groupDocument(key: GroupCache.subjects, path: course.subjectKey.get()),
+              builder: (context, cache) {
+                Subject subject = cache.asScheme(GroupCache.subjects);
+                return Card(
+                    color: subject.color.get().withAlpha(135),
+                    child: Column(
+                      children: <Widget>[Text(course != null ? course.name.get() : '')],
+                    ));
+              }
+            );
+          }),
+    );
   }
 }

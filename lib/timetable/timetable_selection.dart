@@ -47,6 +47,7 @@ class _TimetableListPageState extends State<TimetableListPage> {
                                     .toList(),
                               ),
                               ButtonBar(
+                                alignment: MainAxisAlignment.start,
                                 children: <Widget>[
                                   FlatButton(
                                     child: const Text('Delete'),
@@ -221,25 +222,16 @@ class _TimetableCreationPageState extends State<TimetableCreationPage> {
         onPressed: () {
           if (_formKey.currentState.validate()) {
             String name = nameInput.text;
-            Firestore.instance.runTransaction((transaction) async {
-              var newDocRef = Firestore.instance.collection('timetables').document(id);
-              if (widget.edit) {
-                await transaction.update(newDocRef, {
-                  'lessonsCount': lessonsCount,
-                  'name': name,
-                  'days': dayStates.asMap().map((index, value) => MapEntry(Day.values[index].name, value))
-                });
-              } else {
-                await transaction.set(newDocRef, {
-                  'name': name,
-                  'lessonsCount': lessonsCount,
-                  'groupKey': debugGroup,
-                  'key': newDocRef.documentID,
-                  'days': dayStates.asMap().map((index, value) => MapEntry(Day.values[index].name, value))
-                });
-              }
-            });
-            Navigator.pop(context);
+              Writer.start((writer) async {
+                await writer.updateOrCreate(Caches.groupDocument(key: GroupCache.timetables, path: id), (data) {
+                  Timetable timetable = data.as(GroupCache.timetables);
+                  timetable.name.set(name);
+                  timetable.lessonsCount.set(lessonsCount);
+                  timetable.days.set(dayStates.asMap().map((index, value) => MapEntry(Day.values[index].name, value)));
+                  timetable.key.set(data.document.documentID);
+                  return data;
+                }, update: widget.edit);
+              }).then((_)=>Navigator.pop(context));
           }
         },
         child: Icon(Icons.check),

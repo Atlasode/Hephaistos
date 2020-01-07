@@ -106,7 +106,9 @@ class StreamProvider<T> {
       listener.cancel();
       listener = null;
       listenerCount = 0;
-      parent.clearData();
+      if(controller == null) {
+        parent.clearData();
+      }
     }
   }
 }
@@ -366,6 +368,13 @@ class Document extends Node<DocumentSnapshot, DocumentReference> {
     return CacheData(dataCache, this);
   }
 
+  Future<CacheData> requestData() async {
+    if(dataCache != null){
+      return CacheData(dataCache, this);
+    }
+    return await requestUpdate();
+  }
+
   @override
   void clear() {
     clearData();
@@ -384,28 +393,36 @@ class Writer {
 
   Writer._(this.transaction);
 
-  updateOrCreate(Document doc, DataObject data(DataObject oldData), {bool update = false}) {
+  Future<void> updateOrCreate(Document doc, DataObject data(DataObject oldData), {bool update = false}) async {
     if (update) {
-      this.update(doc, data);
+      await this.update(doc, data);
     } else {
-      set(doc, data);
+      await set(doc, data);
     }
   }
 
-  set(Document doc, DataObject data(DataObject oldData)) {
-    doc._set(transaction, data(doc.dataCache));
+  Future<DataObject> _create(Document doc, DataObject data(DataObject oldData)) async {
+    DataObject obj = doc.dataCache;
+    if(obj == null){
+      obj = new DataObject(doc, await doc.reference.get());
+    }
+    return data(obj);
   }
 
-  update(Document doc, DataObject data(DataObject oldData)) {
-    doc._update(transaction, data(doc.dataCache));
+  Future<void> set(Document doc, DataObject data(DataObject oldData)) async {
+    doc._set(transaction, await _create(doc, data));
   }
 
-  delete(Document doc) {
+  Future<void> update(Document doc, DataObject data(DataObject oldData)) async {
+    doc._update(transaction, await _create(doc, data));
+  }
+
+  Future<void> delete(Document doc) async {
     doc._delete(transaction);
   }
 
   static Future<void> start(Future<void> handleWriting(Writer writer)) {
-    return Firestore.instance.runTransaction((transaction) async => await handleWriting(Writer._(transaction)));
+    return Firestore.instance.runTransaction((transaction) async => await handleWriting(Writer._(transaction)), timeout: Duration(minutes: 2));
   }
 }
 
@@ -490,7 +507,7 @@ class _CachedDocumentState extends State<CachedDocument> {
         stream: widget.storage.stream,
         builder: (BuildContext context, AsyncSnapshot<DocumentSnapshot> currentSummary) {
           if (currentSummary.hasError) return new Text('Error: ${currentSummary.error}');
-          if (currentSummary.connectionState == ConnectionState.waiting) {
+          if (currentSummary.connectionState == ConnectionState.waiting && widget.storage.dataCache == null) {
             if (widget.customWaiting != null) {
               return widget.customWaiting(context, new CacheData(widget.storage.dataCache, widget.storage));
             } else {
@@ -560,7 +577,9 @@ class FilteredGroupCollection<S extends ObjectScheme, C extends ObjectScheme> ex
   final CachedWidgetBuilder customWaiting;
   final CachedWidgetBuilder builder;
 
-  const FilteredGroupCollection({Key key, this.scheme, this.schemeDocumentId, this.keyGetter, this.collection, this.customWaiting, this.builder}) : super(key: key);
+  const FilteredGroupCollection({Key key, this.scheme, this.schemeDocumentId, this.keyGetter, this.collection, CachedWidgetBuilder customWaiting, bool useBuilderForWaiting = false, this.builder}) :
+        this.customWaiting = useBuilderForWaiting ? builder : customWaiting,
+        super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -571,6 +590,31 @@ class FilteredGroupCollection<S extends ObjectScheme, C extends ObjectScheme> ex
       collection: scheme == null
           ? col
           : col.where(provider),
+      filterPredicate: () => keys != null && keys.length > 0,
+      builder: builder,
+      customWaiting: customWaiting,
+    );
+  }
+}
+
+class FilteredCollection<C extends ObjectScheme> extends StatelessWidget {
+  final String filterKey;
+  final KeyGetter<void> keyGetter;
+  final CollectionKey<C> collection;
+  final CachedWidgetBuilder customWaiting;
+  final CachedWidgetBuilder builder;
+
+  const FilteredCollection({Key key, this.filterKey, this.keyGetter, this.collection, CachedWidgetBuilder customWaiting, bool useBuilderForWaiting = false, this.builder}) :
+        this.customWaiting = useBuilderForWaiting ? builder : customWaiting,
+        super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    Collection col = Caches.groupCollection(collection);
+    List<String> keys = keyGetter(null);
+    KeyProvider provider = KeyProvider('keysIn=' + filterKey, keys);
+    return FilteredQuery(
+      collection: col.where(provider),
       filterPredicate: () => keys != null && keys.length > 0,
       builder: builder,
       customWaiting: customWaiting,

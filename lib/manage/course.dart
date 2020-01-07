@@ -188,7 +188,7 @@ class _CoursePageState extends State<CoursePage> {
                 Course course = data.as(GroupCache.courses);
                 course.name.set(name);
                 course.short.set(short);
-                course.color.set(Color(int.parse(defaultColor)));
+                course.color.set(Color(int.parse(defaultColorCode)));
                 course.key.set(data.document.documentID);
                 course.subjectKey.set(widget.subjectKey);
                 return data;
@@ -232,29 +232,34 @@ class _CourseSelectionState extends State<CourseSelection> {
           collection: Caches.groupCollection(GroupCache.subjects),
           builder: (context, subjectsCache) {
             List<Subject> cacheList = subjectsCache.asList(GroupCache.subjects);
-            return new ListView(
-                children: ListTile.divideTiles(
-                    context: context,
-                    tiles: cacheList.where((data) => data.courses.get(fallback: EMPTY_STRING_LIST).length > 0).map((data) {
-                      Subject subject = data;
-                      return FilteredGroupCollection<Subject, Course>(
-                          collection: GroupCache.courses,
-                          schemeDocumentId: subject.object.doc.documentID,
-                          scheme: subject,
-                          keyGetter: (data) => data.courses.get(fallback: EMPTY_STRING_LIST),
-                          builder: (context, coursesCache) {
-                            List<Course> courseList = coursesCache.asList(GroupCache.courses);
-                            return Card(
-                                child: Column(mainAxisSize: MainAxisSize.min, children: <Widget>[
-                              ListTile(
+            List<Widget> widgets = cacheList.where((data) => data.courses.get(fallback: EMPTY_STRING_LIST).length > 0).map<Widget>((data) {
+              Subject subject = data;
+              return FilteredGroupCollection<Subject, Course>(
+                  collection: GroupCache.courses,
+                  schemeDocumentId: subject.object.doc.documentID,
+                  scheme: subject,
+                  keyGetter: (data) => data.courses.get(fallback: EMPTY_STRING_LIST),
+                  builder: (context, coursesCache) {
+                    List<Course> courseList = coursesCache.asList(GroupCache.courses);
+                    return Container(
+                        margin: EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
+                        child: Card(
+                            color: subject.color.get().withAlpha(125),
+                            child: Column(mainAxisSize: MainAxisSize.min, children: <Widget>[
+                              new Center(
+                                  child: new Column(children: [
+                                new Text(subject.name.get(), style: Theme.of(context).textTheme.headline),
+                                new Text(subject.short.get(fallback: ''), style: Theme.of(context).textTheme.subhead)
+                              ])),
+                              /* ListTile(
                                 title: Text(subject.name.get(), style: Theme.of(context).textTheme.headline.copyWith(color: subject.color.get())),
                                 subtitle: Text(
                                   subject.short.get(),
                                 ),
                                 //subtitle: Text('Subject: ${course.subjectKey}'),
-                              ),
+                              ),*/
                               Container(
-                                  margin: EdgeInsets.symmetric(horizontal: 40.0, vertical: 10.0),
+                                  margin: EdgeInsets.symmetric(horizontal: 40.0, vertical: 5.0),
                                   child: Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: courseList.map((course) {
@@ -271,9 +276,11 @@ class _CourseSelectionState extends State<CourseSelection> {
                                           color: Colors.grey[100],
                                         );
                                       }).toList()))
-                            ]));
-                          });
-                    })).toList());
+                            ])));
+                  });
+            }).toList();
+            widgets.insert(0, Center(child: Text('Selected Courses', style: Theme.of(context).textTheme.display1)));
+            return new ListView(children: widgets);
           },
         ));
   }
