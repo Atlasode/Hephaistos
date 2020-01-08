@@ -212,6 +212,9 @@ class Collection extends Node<QuerySnapshot, Query> {
     String key = provider.siblingKey;
     Collection sibling = siblings[key];
     if(sibling == null || provider.needsUpdate(sibling.filter)){
+      if (sibling != null) {
+        sibling.clear();
+      }
       sibling = Collection(path, filter: provider);
       siblings[key] = sibling;
       return sibling;

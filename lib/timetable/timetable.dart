@@ -1,15 +1,14 @@
 import 'dart:collection';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hephaistos/constants.dart';
 import 'package:hephaistos/data/cache.dart';
 import 'package:hephaistos/data/data.dart';
-import 'package:hephaistos/manage/course.dart';
-import 'package:hephaistos/timetable/timetable_selection.dart';
-import 'package:hephaistos/widgets/color_picker.dart';
+import 'package:hephaistos/subjects/courses/course_user.dart';
+import 'package:hephaistos/timetable/cell_selection.dart';
+import 'package:hephaistos/timetable/timetable_manage.dart';
 
 typedef SelectionHandler<V> = bool Function(V value, bool state);
 typedef Supplier<T> = T Function();
@@ -215,7 +214,7 @@ class _TimetablePageState extends State<TimetablePage> {
         selectedIndex = index;
       });
       /*openSubjectSelection(context);*/
-      Navigator.push(context, MaterialPageRoute(builder: (context) => CellSelectionPage(title: 'Create Subject', courses: ['6ZpflWcCWLKumM7RzSAX'])));
+      Navigator.push(context, MaterialPageRoute(builder: (context) => CellSelectionPage(title: 'Select Subject', courses: ['6ZpflWcCWLKumM7RzSAX'])));
     };
   }
 
@@ -305,11 +304,6 @@ class _TimetablePageState extends State<TimetablePage> {
           IconButton(
               icon: Icon(Icons.settings),
               onPressed: () {
-                updateStore('courses');
-                updateStore('subjects');
-                updateStore('rooms');
-                updateStore('timetables');
-                updateStore('persons');
               }),
           IconButton(
               icon: Icon(Icons.autorenew),
@@ -332,232 +326,5 @@ class _TimetablePageState extends State<TimetablePage> {
                     children: rows.map((row) => row.buildTableRow(context, this)).toList(),
                   );
                 })));
-  }
-
-  void updateStore(String collections) {
-    CollectionReference ref = Firestore.instance.collection(collections);
-    ref.getDocuments().then((value) {
-      value.documents.asMap().map((key, value) {
-        return MapEntry(value.documentID, value.data);
-      }).forEach((key, value) {
-        Firestore.instance.collection('groups').document(debugGroup).collection(collections).document(key).setData(value);
-      });
-    });
-  }
-}
-
-class CellSelectionPage extends StatefulWidget {
-  final List<String> courses;
-  final String title;
-
-  const CellSelectionPage({Key key, this.title, this.courses = const []}) : super(key: key);
-
-  @override
-  State<CellSelectionPage> createState() => _CellSelectionPageState();
-}
-
-class _CellSelectionPageState extends State<CellSelectionPage> {
-  _CellViewState cellView;
-  ScrollController scrollController;
-
-  @override
-  void initState() {
-    super.initState();
-    scrollController = ScrollController();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // full screen width and height
-    double width = MediaQuery.of(context).size.width;
-    double height = MediaQuery.of(context).size.height;
-
-    // height without SafeArea
-    var padding = MediaQuery.of(context).padding;
-    double height1 = height - padding.top - padding.bottom;
-
-    // height without status bar
-    double height2 = height - padding.top;
-
-    // height without status and toolbar
-    double height3 = height - padding.top - kToolbarHeight;
-    return Scaffold(
-        appBar: AppBar(title: Text(widget.title)),
-        body: new Column(
-          children: <Widget>[
-            Container(
-              width: width,
-              height: height3 * 0.2,
-              margin: EdgeInsets.symmetric(vertical: height3 * 0.05, horizontal: width * 0.075),
-              child: Card(child: CellView(courses: widget.courses, stateUpdater: (value)=>cellView=value)),
-            ),
-            Container(
-                width: width,
-                height: height3 * 0.6,
-                margin: EdgeInsets.symmetric(vertical: height3 * 0.05, horizontal: width * 0.05),
-                child: Card(
-                  child: CachedQuery(
-                    collection: Caches.groupCollection(GroupCache.subjects),
-                    builder: (context, subjectsCache) {
-                      List<Subject> cacheList = subjectsCache.asList(GroupCache.subjects);
-                      return new ListView(
-                          controller: scrollController,
-                          children: ListTile.divideTiles(
-                              context: context,
-                              tiles: cacheList.map((subject) {
-                                return FilteredGroupCollection(
-                                    collection: GroupCache.courses,
-                                    schemeDocumentId: subject.object.document.documentID,
-                                    scheme: subject,
-                                    keyGetter: (subject) => subject.courses.get(),
-                                    useBuilderForWaiting: true,
-                                    builder: (context, coursesCache) {
-                                      List<Course> courseList = coursesCache.asList(GroupCache.courses);
-                                      return ExpansionTile(
-                                        key: ValueKey(subject.key.get()),
-                                        title: Text(subject.name.get(), style: TextStyle(color: subject.color.get())),
-                                        subtitle: Text(subject.short.get()),
-                                        children: ListTile.divideTiles(
-                                            context: context,
-                                            tiles: courseList.map((course)=> CourseTile(course: course, onSelection: (value, state)=>cellView.onSelection(value, state)))).toList(),
-                                      );
-                                    });
-                              })).toList());
-                    },
-                  ),
-                )),
-          ],
-        ));
-  }
-}
-
-class CourseTile extends StatefulWidget {
-  final Course course;
-  final SelectionHandler<String> onSelection;
-
-  const CourseTile({Key key, this.course, this.onSelection}) : super(key: key);
-
-  @override
-  State<StatefulWidget> createState() =>_CourseTile();
-
-}
-
-class _CourseTile extends State<CourseTile> {
-  bool selected;
-
-  @override
-  void initState() {
-    super.initState();
-    selected = false;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    Course course = widget.course;
-    return new ListTile(
-        key: ValueKey(course.key.get()),
-        onTap: (){
-          setState(() {
-            selected=widget.onSelection(course.key.get(), !selected) ? !selected : selected;
-          });
-        },
-        title: Text(course.name.get()),
-        subtitle: Text(course.short.get()),
-        trailing: CircleColor(color: course.color.get(), circleSize: 42, isSelected:selected, iconSelected: Icons.check));
-  }
-
-}
-
-class CellView extends StatefulWidget {
-  final List<String> courses;
-  final Consumer<_CellViewState> stateUpdater;
-
-  const CellView({Key key, this.courses, this.stateUpdater}) : super(key: key);
-
-  @override
-  State<CellView> createState() => _CellViewState();
-}
-
-class _CellViewState extends State<CellView> {
-  List<String> courses;
-  //Map<String, List<String>> coursesBySubject;
-
-  @override
-  void initState() {
-    super.initState();
-    this.courses = List.of(widget.courses);
-    widget.stateUpdater(this);
-    /*coursesBySubject= {};
-    for(String course in courses) {
-      Document doc = Caches.groupDocument(key: GroupCache.courses, path: course);
-      doc.requestData().then((obj){
-        Course course = obj.asSchemeOrNull(GroupCache.courses);
-        if(course != null){
-          setState(() {
-            coursesBySubject.putIfAbsent(course.subjectKey.get(), ()=>[]).add(course.key.get());
-          });
-        }
-      });
-    }*/
-  }
-
-  bool onSelection(String value, bool state){
-    if(!state && courses.contains(value)){
-      setState(() {
-        courses.remove(value);
-      });
-      return true;
-    } else if(state && courses.length < 4) {
-      setState(() {
-        courses.add(value);
-      });
-      return true;
-    }
-    return false;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    List<Widget> widgets;
-    if (courses.isNotEmpty) {
-      widgets = courses.map(_buildCourse).toList();
-    } else {
-      widgets = [
-        const Expanded(
-            child: const Card(
-          child: const Center(child: const Text('No Course is selected')),
-        ))
-      ];
-    }
-    return Container(
-        margin: EdgeInsets.all(10),
-        child:/* FilteredCollection(
-
-    builder: (context, obj)=>*/Row(
-      mainAxisSize: MainAxisSize.max,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: widgets,
-    ));
-  }
-
-  Widget _buildCourse(String courseKey) {
-    return Expanded(
-      child: CachedDocument(
-          document: Caches.groupDocument(key: GroupCache.courses, path: courseKey),
-          builder: (context, cache) {
-            Course course = cache.asScheme(GroupCache.courses);
-            return CachedDocument(
-              document: Caches.groupDocument(key: GroupCache.subjects, path: course.subjectKey.get()),
-              builder: (context, cache) {
-                Subject subject = cache.asScheme(GroupCache.subjects);
-                return Card(
-                    color: subject.color.get().withAlpha(135),
-                    child: Column(
-                      children: <Widget>[Text(course != null ? course.name.get() : '')],
-                    ));
-              }
-            );
-          }),
-    );
   }
 }

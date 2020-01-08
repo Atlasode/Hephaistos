@@ -1,8 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:hephaistos/manage/course.dart';
-import 'package:hephaistos/manage/subjects.dart';
-import 'package:hephaistos/timetable/timetable_selection.dart';
+import 'package:hephaistos/subjects/courses/course_manage.dart';
+import 'package:hephaistos/subjects/subject_manage.dart';
+import 'package:hephaistos/timetable/timetable_manage.dart';
 
 class OptionItem {
   final String title;

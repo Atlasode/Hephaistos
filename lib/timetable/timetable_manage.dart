@@ -1,10 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:hephaistos/constants.dart';
 import 'package:hephaistos/data/cache.dart';
 import 'package:hephaistos/data/data.dart';
-import 'package:hephaistos/manage/manage.dart';
 import 'package:hephaistos/timetable/timetable.dart';
 
 class TimetableListPage extends StatefulWidget {
