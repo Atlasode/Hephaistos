@@ -238,10 +238,10 @@ class User extends ObjectScheme {
         super(object);
 
   /// Returns a list with all subjects that have not course selected for this user.
-  Future<List<String>> getMissingSubjects(Group group) async {
-    return Caches.groupCollection(GroupCache.subjects).requestUpdate().then((subjectsCache) {
+  Future<List<Subject>> getMissingSubjects() async {
+    return Caches.groupCollection(GroupCache.subjects).requestData().then((subjectsCache) {
       List<Subject> subjects = subjectsCache.asList(GroupCache.subjects);
-      return subjects.map((subjectCache) => subjectCache.name.value).where((subjectName) => courses.get().containsKey(subjectName)).toList();
+      return subjects.where((subject) => !courses.get().containsKey(subject.key.get())).toList();
     });
   }
 }

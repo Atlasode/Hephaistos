@@ -92,14 +92,23 @@ class _TimetableListPageState extends State<TimetableListPage> {
                                                 FlatButton(
                                                     child: Text('Select'),
                                                     onPressed: () {
+                                                      Writer.start((writer) async {
+                                                        writer.update(Caches.userDocument(), (data) {
+                                                          data
+                                                              .as<User>(Caches.users)
+                                                              .timetable
+                                                              .set(timetable.key.get());
+                                                          return data;
+                                                        });
+                                                      });
                                                       Navigator.pop(context);
                                                       Navigator.push(
                                                           context,
                                                           MaterialPageRoute(
                                                               builder: (context) => TimetablePage(
-                                                                    title: timetable.name.get(),
-                                                                    timetableKey: timetable.key.get(),
-                                                                  )));
+                                                                title: timetable.name.get(),
+                                                                timetableKey: timetable.key.get(),
+                                                              )));
                                                     })
                                               ],
                                             );

@@ -294,7 +294,14 @@ class Collection extends Node<QuerySnapshot, Query> {
   Future<CacheData> requestUpdate() async {
     QuerySnapshot snapshot = await reference.getDocuments();
     update(snapshot);
-    return CacheData(childValues, this);
+    return CacheData(List.of(childValues), this);
+  }
+
+  Future<CacheData> requestData() async {
+    if (childValues.length > 0) {
+      return CacheData(List.of(childValues), this);
+    }
+    return await requestUpdate();
   }
 }
 
@@ -662,14 +669,14 @@ class _CachedQueryState extends State<CachedQuery> {
         stream: widget.collection.stream,
         builder: (BuildContext context, AsyncSnapshot<QuerySnapshot> currentSummary) {
           if (currentSummary.hasError) return new Text('Error: ${currentSummary.error}');
-          if (currentSummary.connectionState == ConnectionState.waiting) {
+          if (currentSummary.connectionState == ConnectionState.waiting && widget.collection.childValues.length <= 0) {
             if (widget.customWaiting != null) {
-              return widget.customWaiting(context, new CacheData(widget.collection.childValues, widget.collection));
+              return widget.customWaiting(context, new CacheData(List.of(widget.collection.childValues), widget.collection));
             } else {
               return CircularProgressIndicator();
             }
           }
-          return widget.builder(context, new CacheData(widget.collection.childValues, widget.collection));
+          return widget.builder(context, new CacheData(List.of(widget.collection.childValues), widget.collection));
         });
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:hephaistos/home/home.dart';
 import 'package:hephaistos/manage/options.dart';
 import 'package:hephaistos/timetable/timetable.dart';
@@ -10,6 +11,15 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      localizationsDelegates: [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: [
+        const Locale('en'), // English
+        const Locale('de'), // German
+      ],
       title: 'Flutter Demo',
       theme: ThemeData(
         // This is the theme of your application.
