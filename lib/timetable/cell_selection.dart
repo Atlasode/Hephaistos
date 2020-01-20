@@ -96,11 +96,13 @@ class _CellSelectionPageState extends State<CellSelectionPage> {
                   children: <Widget>[
                     OutlineButton(
                       child: Text('Cencel'),
-                      onPressed: () => '',
+                        onPressed: () => Navigator.pop(context)
                     ),
                     OutlineButton(
                       child: Text('Submit'),
-                      onPressed: () => '',
+                      onPressed: () {
+                        List<String> courses = cellView.courses;
+                      },
                     )
                   ],
                 ))
@@ -158,8 +160,6 @@ class CellView extends StatefulWidget {
 class _CellViewState extends State<CellView> {
   List<String> courses;
 
-  //Map<String, List<String>> coursesBySubject;
-
   @override
   void initState() {
     super.initState();
@@ -181,69 +181,6 @@ class _CellViewState extends State<CellView> {
     }
     return false;
   }
-
-  /*@override
-  Widget build(BuildContext context) {
-    return Container(
-        margin: EdgeInsets.all(10),
-        child: FilteredCollection(
-            filterKey: 'cellSelection',
-            keyGetter: (_) => List.of(courses),
-            collection: GroupCache.courses,
-            builder: (context, obj) {
-              Map<String, List<Course>> coursesBySubject = {};
-              List<Course> courses = obj.asList(GroupCache.courses);
-              courses.forEach((course) {
-                coursesBySubject.putIfAbsent(course.subjectKey.get(), () => []).add(course);
-              });
-              return FilteredCollection(
-                  filterKey: 'cellSelectionSubjects',
-                  keyGetter: (_) => List.of(coursesBySubject.keys),
-                  collection: GroupCache.subjects,
-                  builder: (context, obj) {
-                    List<Subject> subjects = obj.asList(GroupCache.subjects);
-                    List<Widget> widgets;
-                    if (subjects.isNotEmpty) {
-                      widgets = subjects.map((subject) => _buildCourse(subject, coursesBySubject[subject.key.get()])).toList();
-                    } else {
-                      widgets = [
-                        const Expanded(
-                            child: const Card(
-                              child: const Center(child: const Text('No Course is selected')),
-                            ))
-                      ];
-                    }
-                    return Row(
-                      mainAxisSize: MainAxisSize.max,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: widgets,
-                    );
-                  });
-            }));
-  }
-
-  Widget _buildCourse(Subject subject, List<Course> courses) {
-    List<Widget> courseWidgets = courses
-        .map((course) => Expanded(
-        child: Card(
-            color: course.color.get(),
-            child: Column(
-              children: <Widget>[Text(course != null ? course.name.get() : '')],
-            ))))
-        .toList();
-    return Expanded(
-        child: Card(
-            color: subject.color.get().withAlpha(135),
-            child: Column(
-              children: <Widget>[
-                Text(subject != null ? subject.name.get() : ''),
-                Expanded(child:
-                Row(
-                  children: courseWidgets,
-                ))
-              ],
-            )));
-  }*/
 
   @override
   Widget build(BuildContext context) {

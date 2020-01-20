@@ -195,10 +195,16 @@ class Room extends Named {
 class Subject extends Named {
   final Attribute<List<String>> courses;
   final Attribute<bool> mandatory;
+  final Attribute<bool> coursed;
+  final Attribute<List<String>> persons;
+  final Attribute<List<String>> rooms;
 
   Subject(DataObject object)
       : courses = ObjectScheme.att(object, 'courses', Properties.stringList),
         mandatory =  ObjectScheme.att(object, 'mandatory', Properties.boolean),
+        coursed = ObjectScheme.att(object, 'coursed', Properties.boolean),
+        persons = ObjectScheme.att(object, 'persons', Properties.stringList),
+        rooms = ObjectScheme.att(object, 'rooms', Properties.stringList),
         super(object);
 }
 
@@ -246,6 +252,14 @@ class User extends ObjectScheme {
   }
 }
 
+class LessonMode {
+  static const int SUBJECT = 0;
+  static const int COURSES = 1;
+  static const int DEPRECATED = 2;
+
+  static const int DEFAULT_MODE = LessonMode.DEPRECATED;
+}
+
 class Timetable extends ObjectScheme {
   final Attribute<String> key;
   final Attribute<String> name;
@@ -253,6 +267,7 @@ class Timetable extends ObjectScheme {
   final Attribute<int> extrasCount;
   final Attribute<Map<String, bool>> days;
   final Attribute<List<Lessons>> lessons;
+  final Attribute<int> lessonMode;
 
   Timetable(DataObject object)
       : key = ObjectScheme.att(object, 'key', Properties.string),
@@ -261,6 +276,7 @@ class Timetable extends ObjectScheme {
         extrasCount = ObjectScheme.att(object, 'extrasCount', Properties.integer),
         days = ObjectScheme.att(object, 'days', Properties.boolMap),
         lessons = ObjectScheme.att(object, 'lessons', Properties.lessonsList),
+        lessonMode = ObjectScheme.att(object, 'lessonMode', Properties.integer, defaultValue: LessonMode.DEFAULT_MODE),
         super(object);
 
   @override

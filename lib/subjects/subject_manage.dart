@@ -29,7 +29,8 @@ class SubjectListPage extends StatelessWidget {
                               name: data.name.get(),
                               id: data.key.get(),
                               mandatory: data.mandatory.get(),
-                              color: data.color.get())));
+                              color: data.color.get(),
+                              coursed: data.coursed.get())));
                   break;
                 }
               case ManageOption.delete:

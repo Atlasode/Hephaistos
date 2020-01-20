@@ -1,101 +1,16 @@
-import 'dart:collection';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:hephaistos/constants.dart';
 import 'package:hephaistos/data/cache.dart';
 import 'package:hephaistos/data/data.dart';
 import 'package:hephaistos/subjects/courses/course_user.dart';
 import 'package:hephaistos/timetable/cell_selection.dart';
 import 'package:hephaistos/timetable/timetable_manage.dart';
+import 'package:hephaistos/utils/flutter_utils.dart';
 
 typedef SelectionHandler<V> = bool Function(V value, bool state);
 typedef Supplier<T> = T Function();
 typedef Consumer<T> = void Function(T value);
-
-class LessonRow {
-  final int index;
-  final RowType type;
-  final Map<String, String> lessons;
-  final String from;
-  final String to;
-  final bool dayRow;
-
-  LessonRow(this.type, this.lessons, {this.index = -1, this.from = '', this.to = '', this.dayRow = false});
-
-  TableRow buildTableRow(BuildContext context, _TimetablePageState state) {
-    List<Widget> widgets = [];
-    List<MapEntry<String, String>> lessonList = lessons.entries.toList();
-    lessonList.sort((a, b) => dayByName(a.key).index - dayByName(b.key).index);
-    if (!dayRow) {
-      widgets.add(state.buildCell(context, '${this.index + 1}.', row: this.index, index: -1));
-      int cellIndex = 0;
-      widgets.addAll(lessonList.map((entry) => state.buildCell(context, entry.value, lesson: true, row: this.index, index: cellIndex++)));
-    } else {
-      widgets.add(state.buildCell(context, '', height: 40, row: -1, index: -1));
-      int cellIndex = 0;
-      widgets.addAll(lessonList.map(
-          (entry) => state.buildCell(context, '${entry.key[0].toUpperCase()}${entry.key.substring(1, 3)}', height: 40, row: -1, index: cellIndex++)));
-    }
-    return TableRow(children: widgets);
-  }
-}
-
-/// Currently not used, could be used for 'breaks'
-enum RowType { DAY, LESSON, BREAK }
-
-class TimetableManager {
-  LessonRow dayRow;
-  LinkedHashMap<int, LessonRow> rows;
-  int lessonCount;
-  String name;
-  String key;
-  Map<String, bool> days;
-
-  TimetableManager(Timetable timetable) : rows = new LinkedHashMap() {
-    var days = timetable.days.get();
-    this.lessonCount = timetable.lessonsCount.get();
-    this.name = timetable.name.get();
-    this.key = timetable.key.get();
-    List<Day> dayList;
-    if (days != null) {
-      dayList = Day.values.where((day) => days[day.name]).toList();
-      this.days = Map.fromIterable(Day.values, key: (day) => day.name, value: (day) => days[day.name]);
-    } else {
-      // This only can be caused by a bug at the creation of the timetable, so we use the first five days
-      //TODO: Fix document ?
-      dayList = Day.values.getRange(0, 5).toList();
-      this.days = defaultDays;
-    }
-    dayRow = new LessonRow(RowType.DAY, Map.fromIterable(dayList, key: (day) => day.name, value: (day) => ''), dayRow: true);
-    if (timetable.lessons.get() != null && timetable.lessons.get().length > 0) {
-      for (int i = 0; i < lessonCount; i++) {
-        Lessons rowData = timetable.lessons.get()[i];
-        Map<dynamic, dynamic> rowLessons = rowData.lessons;
-        rows[i] = new LessonRow(RowType.LESSON,
-            Map.fromIterable(dayList, key: (day) => day.name, value: (day) => rowLessons[day.name] != null ? rowLessons[day.name] : ''),
-            index: i);
-      }
-    } else {
-      for (int i = 0; i < lessonCount; i++) {
-        rows[i] = new LessonRow(RowType.LESSON, Map.fromIterable(dayList, key: (day) => day.name, value: (day) => ''), index: i);
-      }
-    }
-  }
-
-  Task update(int row, int cell) {}
-}
-
-class Task {
-  final TaskType type;
-
-  Task(this.type);
-}
-
-enum TimetableState { EXISTING, UNKNOWN }
-
-enum TaskType { CREATE_ROW, CREATE_ALL, UPDATE_CELL, CLEAN_UP }
 
 class TimetableMainPage extends StatelessWidget {
   @override
@@ -127,6 +42,30 @@ class _TimetablePageState extends State<TimetablePage> {
   int selectedRow;
   int selectedIndex;
 
+  TableRow _buildRow(BuildContext context, int rowIndex, Timetable timetable, [Lessons lessons]) {
+    assert(rowIndex >= 0 && lessons != null || rowIndex == -1 && lessons == null);
+    List<Widget> widgets = [];
+    int cellIndex = 0;
+    //The row with the negative index is the row that contains the names of the days
+    if (rowIndex == -1) {
+      widgets.add(buildCell(context, text: '', height: 40, row: -1, index: -1));
+      Map<String, bool> days = timetable.days.get();
+      List<String> dayNames = Day.values.where((day) => days[day.name]).map((day) => FlutterUtils.shortWeekday(context, day.index)).toList();
+      widgets.addAll(dayNames.map((dayName) => buildCell(context, text: dayName, height: 40, row: rowIndex, index: cellIndex++)));
+    } else {
+      List<MapEntry<String, List<String>>> lessonList = lessons.courses.entries.toList();
+      if (lessonList.isEmpty) {
+        Map<String, bool> days = timetable.days.get();
+        lessonList.addAll(Day.values.where((day) => days[day.name]).map((day) => MapEntry(day.name, [])));
+      } else {
+        lessonList.sort((a, b) => dayByName(a.key).index - dayByName(b.key).index);
+      }
+      widgets.add(buildCell(context, text: '${rowIndex + 1}.', row: rowIndex, index: -1));
+      widgets.addAll(lessonList.map((entry) => buildCell(context, courses: entry.value, row: rowIndex, index: cellIndex++)));
+    }
+    return TableRow(children: widgets);
+  }
+
   Widget _buildSubject(BuildContext context, Subject subject) {
     return new ListTile(
         title: Text(subject.name.get(), style: TextStyle(color: subject.color.get())),
@@ -151,27 +90,57 @@ class _TimetablePageState extends State<TimetablePage> {
         });
   }
 
-  Widget buildCell(BuildContext context, String title, {double height = 60.0, bool lesson = false, int row = -1, int index = -1}) {
+  Widget buildCell(BuildContext context, {double height = 60.0, String text, List<String> courses, String subjectKey, int row = -1, int index = -1}) {
+    assert(courses != null || subjectKey != null || text != null);
     Color defaultColor = Theme.of(context).canvasColor;
     if (row % 2 == 0 && index % 2 == 1 || row % 2 == 1 && index % 2 == 0) {
       defaultColor = Colors.grey[200];
     }
     Widget child;
-    if (lesson && title.length > 0) {
+    if (courses != null && courses.length > 0) {
+      child = FilteredCollection(
+          filterKey: 'timetable_courses:$row=$index',
+          keyGetter: (_) => List.of(courses),
+          collection: GroupCache.courses,
+          builder: (context, obj) {
+            Map<String, List<Course>> coursesBySubject = {};
+            List<Course> courses = obj.asList(GroupCache.courses);
+            courses.forEach((course) {
+              coursesBySubject.putIfAbsent(course.subjectKey.get(), () => []).add(course);
+            });
+            return FilteredCollection(
+                filterKey: 'timetable_subjects:$row=$index',
+                keyGetter: (_) => List.of(coursesBySubject.keys),
+                collection: GroupCache.subjects,
+                builder: (context, obj) {
+                  List<Subject> subjects = obj.asList(GroupCache.subjects);
+                  Course course = courses.first;
+                  Subject subject = obj.asSchemeOrNull(GroupCache.subjects);
+                  return InkWell(
+                      child: Container(
+                        color: course != null && course.color != null ? course.color.get().withAlpha(135) : Theme
+                            .of(context)
+                            .canvasColor,
+                        height: height,
+                        child: Center(
+                          child: Text(
+                            course != null && course.name.get() != null ? course.name.get() : '',
+                            style: Theme
+                                .of(context)
+                                .textTheme
+                                .subhead,
+                          ),
+                        ),
+                      ),
+                      onTap: _onCellPress(context, true, row, index));
+                });
+          });
+    } else
+    if (subjectKey != null) {
       child = CachedDocument(
-          document: Caches.groupDocument(key: GroupCache.subjects, path: title),
-          customWaiting: (context, cache) {
-            Subject subject = cache.asSchemeOrNull(GroupCache.subjects);
-            return InkWell(
-              child: Container(
-                  color: subject != null && subject.color != null ? subject.color.get().withAlpha(135) : Theme.of(context).canvasColor,
-                  height: height,
-                  child: Center(child: new Text(subject != null && subject.name.get() != null ? subject.name.get() : ''))),
-              onTap: _onCellPress(context, lesson, row, index, key: title),
-            );
-          },
+          document: Caches.groupDocument(key: GroupCache.subjects, path: subjectKey),
           builder: (context, cache) {
-            Subject subject = cache.asScheme(GroupCache.subjects);
+            Subject subject = cache.asSchemeOrNull(GroupCache.subjects);
             return InkWell(
                 child: Container(
                   color: subject != null && subject.color != null ? subject.color.get().withAlpha(135) : Theme.of(context).canvasColor,
@@ -183,7 +152,7 @@ class _TimetablePageState extends State<TimetablePage> {
                     ),
                   ),
                 ),
-                onTap: _onCellPress(context, lesson, row, index, key: title));
+                onTap: _onCellPress(context, true, row, index));
           });
     } else {
       child = InkWell(
@@ -191,12 +160,12 @@ class _TimetablePageState extends State<TimetablePage> {
             height: height,
             child: Center(
               child: Text(
-                title,
+                text ?? '',
                 style: Theme.of(context).textTheme.body1,
               ),
             ),
           ),
-          onTap: _onCellPress(context, lesson, row, index));
+          onTap: _onCellPress(context, courses != null, row, index));
     }
     return Container(
       color: defaultColor,
@@ -204,7 +173,7 @@ class _TimetablePageState extends State<TimetablePage> {
     );
   }
 
-  GestureTapCallback _onCellPress(BuildContext context, bool lesson, int row, int index, {String key}) {
+  GestureTapCallback _onCellPress(BuildContext context, bool lesson, int row, int index) {
     if (!lesson) {
       return null;
     }
@@ -316,14 +285,20 @@ class _TimetablePageState extends State<TimetablePage> {
             child: CachedDocument(
                 document: Caches.groupDocument(key: GroupCache.timetables, path: widget.timetableKey),
                 builder: (context, cache) {
-                  TimetableManager manager = TimetableManager(cache.asScheme(GroupCache.timetables));
-                  List<LessonRow> rows = manager.rows.values.toList();
-                  rows.insert(0, manager.dayRow);
+                  Timetable timetable = cache.asSchemeOrNull(GroupCache.timetables);
+                  List<TableRow> rows = [
+                    _buildRow(context, -1, timetable)
+                  ];
+                  if (timetable != null) {
+                    List<Lessons> lessonsList = timetable.lessons.get();
+                    int rowIndex = 0;
+                    rows.addAll(lessonsList.map((lessons) => _buildRow(context, rowIndex++, timetable, lessons)));
+                  }
                   return Table(
                     columnWidths: {0: FlexColumnWidth(1)},
                     defaultColumnWidth: FlexColumnWidth(2),
                     border: TableBorder.all(color: Colors.grey),
-                    children: rows.map((row) => row.buildTableRow(context, this)).toList(),
+                    children: rows,
                   );
                 })));
   }

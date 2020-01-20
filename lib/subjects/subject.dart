@@ -8,7 +8,8 @@ import 'package:hephaistos/utils/firestore_utils.dart';
 import 'package:hephaistos/widgets/color_picker.dart';
 
 class SubjectPage extends StatefulWidget {
-  const SubjectPage({Key key, this.title, this.edit = false, this.name, this.short, this.id, this.mandatory = false, this.color = defaultColor})
+  const SubjectPage(
+      {Key key, this.title, this.edit = false, this.name, this.short, this.id, this.mandatory = false, this.color = defaultColor, this.coursed = false})
       : super(key: key);
 
   final String title;
@@ -18,6 +19,7 @@ class SubjectPage extends StatefulWidget {
   final String id;
   final Color color;
   final bool mandatory;
+  final bool coursed;
 
   @override
   State<StatefulWidget> createState() => _SubjectPageState();
@@ -29,6 +31,7 @@ class _SubjectPageState extends State<SubjectPage> {
   bool _mandatory = false;
   Color color;
   String id;
+  bool _coursed;
 
   final _formKey = GlobalKey<FormState>();
 
@@ -43,11 +46,50 @@ class _SubjectPageState extends State<SubjectPage> {
     }
     _mandatory = widget.mandatory;
     color = widget.color;
+    _coursed = widget.coursed;
     super.initState();
   }
 
   @override
   Widget build(BuildContext context) {
+    List<Widget> informationWidgets = [];
+    if (_coursed) {
+      informationWidgets.add(GroupOptions<Subject, Course>(
+          schemeCollection: GroupCache.subjects,
+          collection: GroupCache.courses,
+          keyGetter: (data) => data.courses.get(fallback: EMPTY_STRING_LIST),
+          parent: Caches.groupDocument(key: GroupCache.subjects, path: id),
+          editPageBuilder: (context, doc, node) =>
+              CoursePage(
+                  title: 'Edit Courses',
+                  name: doc.name.get(),
+                  short: doc.short.get(),
+                  edit: true,
+                  documentID: node.documentID,
+                  subjectKey: id),
+          title: 'Courses',
+          addText: 'Add Course',
+          onAddPress: () {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => CoursePage(title: 'Create Course', edit: false, subjectKey: id)));
+          }));
+    } else {
+      informationWidgets.add(GroupOptions<Subject, Named>(
+          schemeCollection: GroupCache.subjects,
+          collection: GroupCache.persons,
+          keyGetter: (data) => data.persons.get(fallback: EMPTY_STRING_LIST),
+          parent: Caches.groupDocument(key: GroupCache.subjects, path: id),
+          editPageBuilder: (context, data, doc) => SubjectPage(title: 'Edit Person'),
+          title: 'Persons',
+          addText: 'Add Person'));
+      informationWidgets.add(GroupOptions<Subject, Room>(
+          schemeCollection: GroupCache.subjects,
+          collection: GroupCache.rooms,
+          keyGetter: (data) => data.rooms.get(fallback: EMPTY_STRING_LIST),
+          parent: Caches.groupDocument(key: GroupCache.subjects, path: id),
+          editPageBuilder: (context, data, doc) => SubjectPage(title: 'Edit Room'),
+          title: 'Rooms',
+          addText: 'Add Room'));
+    }
     return Scaffold(
       appBar: AppBar(
         // Here we take the value from the MyHomePage object that was created by
@@ -58,59 +100,58 @@ class _SubjectPageState extends State<SubjectPage> {
           key: _formKey,
           child: SingleChildScrollView(
               child: Column(
-            children: <Widget>[
-              TextFormField(
-                decoration: InputDecoration(labelText: 'Name*'),
-                controller: nameInput,
-                validator: (value) {
-                  if (value.isEmpty) {
-                    return 'Please enter a name';
-                  }
-                  return null;
-                },
-              ),
-              TextFormField(
-                decoration: InputDecoration(labelText: 'Short'),
-                controller: shortInput,
-              ),
-              ListTile(
-                title: Text('Subject Color'),
-                subtitle: Text('Color in the timetable.'),
-                trailing: CircleColor(
-                  color: this.color,
-                  circleSize: 45,
-                  onColorChoose: () => ColorPickerDialog.show(context,
-                      title: 'Subject Color',
-                      defaultColor: this.color,
-                      onColorChange: (color) => setState(() {
+                children: <Widget>[
+                  TextFormField(
+                    decoration: InputDecoration(labelText: 'Name*'),
+                    controller: nameInput,
+                    validator: (value) {
+                      if (value.isEmpty) {
+                        return 'Please enter a name';
+                      }
+                      return null;
+                    },
+                  ),
+                  TextFormField(
+                    decoration: InputDecoration(labelText: 'Short'),
+                    controller: shortInput,
+                  ),
+                  ListTile(
+                    title: Text('Subject Color'),
+                    subtitle: Text('Color in the timetable.'),
+                    trailing: CircleColor(
+                      color: this.color,
+                      circleSize: 45,
+                      onColorChoose: () => ColorPickerDialog.show(context,
+                          title: 'Subject Color',
+                          defaultColor: this.color,
+                          onColorChange: (color) => setState(() {
                             this.color = color;
                           })),
-                ),
-              ),
-              CheckboxListTile(
-                title: Text("Mandatory"),
-                activeColor: Colors.green,
-                value: _mandatory,
-                onChanged: (value) {
-                  setState(() {
-                    _mandatory = value;
-                  });
-                },
-              ),
-              GroupOptions<Subject, Course>(
-                  schemeCollection: GroupCache.subjects,
-                  collection: GroupCache.courses,
-                  keyGetter: (data) => data.courses.get(fallback: EMPTY_STRING_LIST),
-                  parent: Caches.groupDocument(key: GroupCache.subjects, path: id),
-                  editPageBuilder: (context, doc, node) => CoursePage(
-                      title: 'Edit Courses', name: doc.name.get(), short: doc.short.get(), edit: true, documentID: node.documentID, subjectKey: id),
-                  title: 'Courses',
-                  addText: 'Add Course',
-                  onAddPress: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => CoursePage(title: 'Create Course', edit: false, subjectKey: id)));
-                  }),
-            ],
-          ))),
+                    ),
+                  ),
+                  CheckboxListTile(
+                    title: Text("Mandatory"),
+                    activeColor: Colors.green,
+                    value: _mandatory,
+                    onChanged: (value) {
+                      setState(() {
+                        _mandatory = value;
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    title: Text("Coursed"),
+                    activeColor: Colors.green,
+                    value: _coursed,
+                    onChanged: (value) {
+                      setState(() {
+                        _coursed = value;
+                      });
+                    },
+                  ),
+                  ...informationWidgets
+                ],
+              ))),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           if (_formKey.currentState.validate()) {
@@ -124,6 +165,7 @@ class _SubjectPageState extends State<SubjectPage> {
                 subject.color.set(color);
                 subject.key.set(data.document.documentID);
                 subject.mandatory.set(_mandatory);
+                subject.coursed.set(_coursed);
                 return data;
               }, update: widget.edit);
             }).then((_) => Navigator.pop(context));

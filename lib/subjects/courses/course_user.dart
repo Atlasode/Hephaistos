@@ -43,8 +43,8 @@ class _CourseSelectionState extends State<CourseSelection> {
           builder: (context, subjectsCache) {
             List<String> unselectedKeys = data.data.map((subject) => subject.key.get()).toList();
             List<Subject> subjects = subjectsCache.asList(GroupCache.subjects);
-            Widget selected = _createSubjectsView(subjects.where((subject) => !unselectedKeys.contains(subject.key.get())));
-            Widget unselected = _createSubjectsView(data.data, unselected: true);
+            Widget selected = SubjectsView(subjects: subjects.where((subject) => !unselectedKeys.contains(subject.key.get())));
+            Widget unselected = SubjectsView(subjects: data.data, unselected: true);
             return TabBarView(
               children: <Widget>[
                 unselected,
@@ -55,12 +55,31 @@ class _CourseSelectionState extends State<CourseSelection> {
         )));
         });
   }
+}
 
-  Widget _createSubjectsView(Iterable<Subject> subjects, {bool unselected = false}) {
-    List<Widget> widgets = subjects.where((data) =>
+class SubjectsView extends StatefulWidget {
+  final Iterable<Subject> subjects;
+  final bool unselected;
+
+  const SubjectsView({Key key, this.subjects, this.unselected = false}) : super(key: key);
+
+  @override
+  State<StatefulWidget> createState() => _SubjectsViewState();
+
+}
+
+class _SubjectsViewState extends State<SubjectsView> {
+  List<Widget> widgets;
+
+  @override
+  void initState() {
+    super.initState();
+    int index = 0;
+    widgets = widget.subjects.where((data) =>
     data.courses
         .get(fallback: EMPTY_STRING_LIST)
-        .length > 0).map<Widget>((subject) {
+        .length > 0)
+        .map<Widget>((subject) {
       return FilteredGroupCollection<Subject, Course>(
           collection: GroupCache.courses,
           schemeDocumentId: subject.object.doc.documentID,
@@ -68,10 +87,14 @@ class _CourseSelectionState extends State<CourseSelection> {
           keyGetter: (data) => data.courses.get(fallback: EMPTY_STRING_LIST),
           builder: (context, coursesObj) {
             List<Course> courses = coursesObj.asList(GroupCache.courses);
-            return SubjectCard(subject: subject, courses: courses);
+            return SubjectCard(subject: subject, courses: courses, listIndex: index++);
           });
     }).toList();
-    if (unselected) {
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.unselected) {
       return AnimatedList(
           initialItemCount: widgets.length,
           itemBuilder: (context, index, animation) {
@@ -83,6 +106,7 @@ class _CourseSelectionState extends State<CourseSelection> {
       );
     }
   }
+
 }
 
 class SubjectCard extends StatefulWidget {
@@ -90,8 +114,9 @@ class SubjectCard extends StatefulWidget {
   final List<Course> courses;
   final int selectedIndex;
   final String selectedCourse;
+  final int listIndex;
 
-  const SubjectCard({Key key, this.subject, this.courses, this.selectedCourse, this.selectedIndex = -1}) : super(key: key);
+  const SubjectCard({Key key, this.subject, this.courses, this.selectedCourse, this.selectedIndex = -1, this.listIndex}) : super(key: key);
 
   @override
   State<StatefulWidget> createState() => _SubjectCardState();
@@ -99,7 +124,6 @@ class SubjectCard extends StatefulWidget {
 }
 
 class _SubjectCardState extends State<SubjectCard> {
-  int listIndex;
   int selectedIndex;
 
   @override
@@ -118,8 +142,12 @@ class _SubjectCardState extends State<SubjectCard> {
     setState(() {
       selectedIndex = index;
     });
-    AnimatedList.of(context).removeItem(index, (context, animation) {
-      return SubjectCard(subject: widget.subject, courses: widget.courses, selectedIndex: index);
+    _SubjectsViewState parent = context.findAncestorStateOfType<_SubjectsViewState>();
+    parent.setState(() {
+      parent.widgets.removeAt(widget.listIndex);
+    });
+    AnimatedList.of(context).removeItem(widget.listIndex, (context, animation) {
+      return SubjectCard(subject: widget.subject, courses: widget.courses, selectedIndex: index, listIndex: widget.listIndex);
     });
   }
 
